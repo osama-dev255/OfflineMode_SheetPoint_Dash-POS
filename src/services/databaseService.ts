@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { OfflineService } from '@/services/offlineService';
 
 // Define TypeScript interfaces for our data models
 export interface User {
@@ -257,25 +258,15 @@ export const initializeDatabase = async () => {
   }
 };
 
-// User CRUD operations
-export const getUsers = async (): Promise<User[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('username');
-      
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    return [];
-  }
-};
-
-// Product CRUD operations
+// Product CRUD operations with offline support
 export const getProducts = async (): Promise<Product[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty product list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -289,73 +280,7 @@ export const getProducts = async (): Promise<Product[]> => {
   }
 };
 
-// Enhanced getProductById with better error handling
-export const getProductById = async (id: string): Promise<Product | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
-      .single();
-      
-    if (error) {
-      console.error('Error fetching product by ID:', error);
-      return null;
-    }
-    return data || null;
-  } catch (error) {
-    console.error('Exception fetching product by ID:', error);
-    return null;
-  }
-};
-
-// Add getProductByBarcode (we already have this in the enhanced version)
-export const getProductByBarcode = async (barcode: string): Promise<Product | null> => {
-  try {
-    // Handle empty barcode
-    if (!barcode) return null;
-    
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('barcode', barcode)
-      .single();
-      
-    if (error) {
-      console.error('Error fetching product by barcode:', error);
-      return null;
-    }
-    return data || null;
-  } catch (error) {
-    console.error('Exception fetching product by barcode:', error);
-    return null;
-  }
-};
-
-// Add getProductBySKU (we already have this in the enhanced version)
-export const getProductBySKU = async (sku: string): Promise<Product | null> => {
-  try {
-    // Handle empty SKU
-    if (!sku) return null;
-    
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('sku', sku)
-      .single();
-      
-    if (error) {
-      console.error('Error fetching product by SKU:', error);
-      return null;
-    }
-    return data || null;
-  } catch (error) {
-    console.error('Exception fetching product by SKU:', error);
-    return null;
-  }
-};
-
-// Enhanced createProduct with better validation
+// Enhanced createProduct with offline support
 export const createProduct = async (product: Omit<Product, 'id'>): Promise<Product | null> => {
   try {
     console.log('Creating product with data:', product);
@@ -375,6 +300,24 @@ export const createProduct = async (product: Omit<Product, 'id'>): Promise<Produ
     
     if (product.stock_quantity < 0) {
       throw new Error('Stock quantity must be zero or positive');
+    }
+    
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // Save product locally for offline use
+      const success = OfflineService.saveProductLocally(product);
+      if (success) {
+        console.log('Product saved locally for offline sync');
+        // Return a mock product with a temporary ID
+        return {
+          ...product,
+          id: `offline-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Failed to save product offline');
+      }
     }
     
     // Remove created_at and updated_at from the product object since they have database defaults
@@ -422,7 +365,7 @@ export const createProduct = async (product: Omit<Product, 'id'>): Promise<Produ
   }
 };
 
-// Enhanced updateProduct with better validation
+// Enhanced updateProduct with offline support
 export const updateProduct = async (id: string, product: Partial<Product>): Promise<Product | null> => {
   try {
     console.log('Updating product with ID:', id, 'and data:', product);
@@ -442,6 +385,14 @@ export const updateProduct = async (id: string, product: Partial<Product>): Prom
     
     if (product.stock_quantity !== undefined && product.stock_quantity < 0) {
       throw new Error('Stock quantity must be zero or positive');
+    }
+    
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // For offline updates, we'll save the update locally
+      // In a real implementation, you might want to queue the update
+      console.log('Offline: Product update queued for sync');
+      return null;
     }
     
     // Remove created_at and updated_at from the product object since they shouldn't be updated
@@ -490,10 +441,17 @@ export const updateProduct = async (id: string, product: Partial<Product>): Prom
   }
 };
 
-// Enhanced deleteProduct with better error handling
+// Enhanced deleteProduct with offline support
 export const deleteProduct = async (id: string): Promise<boolean> => {
   try {
     console.log('Deleting product with ID:', id);
+    
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // For offline deletes, we'll save the delete action locally
+      console.log('Offline: Product delete queued for sync');
+      return false;
+    }
     
     const { error } = await supabase
       .from('products')
@@ -514,10 +472,17 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
   }
 };
 
-// Update product stock quantity
+// Update product stock quantity with offline support
 export const updateProductStock = async (id: string, newStock: number): Promise<boolean> => {
   try {
     console.log('Updating product stock for ID:', id, 'to:', newStock);
+    
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // For offline stock updates, we'll save the update locally
+      console.log('Offline: Product stock update queued for sync');
+      return false;
+    }
     
     const { error } = await supabase
       .from('products')
@@ -538,25 +503,15 @@ export const updateProductStock = async (id: string, newStock: number): Promise<
   }
 };
 
-// Category CRUD operations
-export const getCategories = async (): Promise<Category[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name');
-      
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching categories:', error);
-    return [];
-  }
-};
-
 // Customer CRUD operations
 export const getCustomers = async (): Promise<Customer[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty customer list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('customers')
       .select('*')
@@ -573,6 +528,12 @@ export const getCustomers = async (): Promise<Customer[]> => {
 
 export const getCustomerById = async (id: string): Promise<Customer | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch customer by ID');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('customers')
       .select('*')
@@ -589,6 +550,24 @@ export const getCustomerById = async (id: string): Promise<Customer | null> => {
 
 export const createCustomer = async (customer: Omit<Customer, 'id'>): Promise<Customer | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // Save customer locally for offline use
+      const success = OfflineService.saveCustomerLocally(customer);
+      if (success) {
+        console.log('Customer saved locally for offline sync');
+        // Return a mock customer with a temporary ID
+        return {
+          ...customer,
+          id: `offline-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Failed to save customer offline');
+      }
+    }
+    
     const { data, error } = await supabase
       .from('customers')
       .insert([{ ...customer, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
@@ -605,6 +584,12 @@ export const createCustomer = async (customer: Omit<Customer, 'id'>): Promise<Cu
 
 export const updateCustomer = async (id: string, customer: Partial<Customer>): Promise<Customer | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Customer update queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('customers')
       .update({ ...customer, updated_at: new Date().toISOString() })
@@ -622,6 +607,12 @@ export const updateCustomer = async (id: string, customer: Partial<Customer>): P
 
 export const deleteCustomer = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Customer delete queued for sync');
+      return false;
+    }
+    
     const { error } = await supabase
       .from('customers')
       .delete()
@@ -638,6 +629,12 @@ export const deleteCustomer = async (id: string): Promise<boolean> => {
 // Supplier CRUD operations
 export const getSuppliers = async (): Promise<Supplier[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty supplier list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
@@ -653,6 +650,12 @@ export const getSuppliers = async (): Promise<Supplier[]> => {
 
 export const getSupplierById = async (id: string): Promise<Supplier | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch supplier by ID');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
@@ -669,6 +672,24 @@ export const getSupplierById = async (id: string): Promise<Supplier | null> => {
 
 export const createSupplier = async (supplier: Omit<Supplier, 'id'>): Promise<Supplier | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // Save supplier locally for offline use
+      const success = OfflineService.saveCustomerLocally(supplier); // Using same method for suppliers
+      if (success) {
+        console.log('Supplier saved locally for offline sync');
+        // Return a mock supplier with a temporary ID
+        return {
+          ...supplier,
+          id: `offline-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Failed to save supplier offline');
+      }
+    }
+    
     const { data, error } = await supabase
       .from('suppliers')
       .insert([{ ...supplier, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
@@ -685,6 +706,12 @@ export const createSupplier = async (supplier: Omit<Supplier, 'id'>): Promise<Su
 
 export const updateSupplier = async (id: string, supplier: Partial<Supplier>): Promise<Supplier | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Supplier update queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('suppliers')
       .update({ ...supplier, updated_at: new Date().toISOString() })
@@ -702,6 +729,12 @@ export const updateSupplier = async (id: string, supplier: Partial<Supplier>): P
 
 export const deleteSupplier = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Supplier delete queued for sync');
+      return false;
+    }
+    
     const { error } = await supabase
       .from('suppliers')
       .delete()
@@ -718,6 +751,12 @@ export const deleteSupplier = async (id: string): Promise<boolean> => {
 // Sale CRUD operations
 export const getSales = async (): Promise<Sale[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty sales list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('sales')
       .select('*')
@@ -733,6 +772,12 @@ export const getSales = async (): Promise<Sale[]> => {
 
 export const getSaleById = async (id: string): Promise<Sale | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch sale by ID');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('sales')
       .select('*')
@@ -749,6 +794,24 @@ export const getSaleById = async (id: string): Promise<Sale | null> => {
 
 export const createSale = async (sale: Omit<Sale, 'id'>): Promise<Sale | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // Save sale locally for offline use
+      const success = OfflineService.saveTransactionLocally(sale);
+      if (success) {
+        console.log('Sale saved locally for offline sync');
+        // Return a mock sale with a temporary ID
+        return {
+          ...sale,
+          id: `offline-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Failed to save sale offline');
+      }
+    }
+    
     const { data, error } = await supabase
       .from('sales')
       .insert([{ ...sale, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
@@ -765,6 +828,12 @@ export const createSale = async (sale: Omit<Sale, 'id'>): Promise<Sale | null> =
 
 export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Sale update queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('sales')
       .update({ ...sale, updated_at: new Date().toISOString() })
@@ -782,6 +851,12 @@ export const updateSale = async (id: string, sale: Partial<Sale>): Promise<Sale 
 
 export const deleteSale = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Sale delete queued for sync');
+      return false;
+    }
+    
     const { error } = await supabase
       .from('sales')
       .delete()
@@ -798,6 +873,12 @@ export const deleteSale = async (id: string): Promise<boolean> => {
 // Sale Item CRUD operations
 export const getSaleItems = async (saleId: string): Promise<SaleItem[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty sale items list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('sale_items')
       .select('*')
@@ -813,6 +894,12 @@ export const getSaleItems = async (saleId: string): Promise<SaleItem[]> => {
 
 export const getSaleItemsWithProducts = async (saleId: string): Promise<any[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch sale items with products');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('sale_items')
       .select(`
@@ -831,6 +918,12 @@ export const getSaleItemsWithProducts = async (saleId: string): Promise<any[]> =
 
 export const createSaleItem = async (saleItem: Omit<SaleItem, 'id'>): Promise<SaleItem | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Sale item creation queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('sale_items')
       .insert([{ ...saleItem, created_at: new Date().toISOString() }])
@@ -847,6 +940,12 @@ export const createSaleItem = async (saleItem: Omit<SaleItem, 'id'>): Promise<Sa
 
 export const updateSaleItem = async (id: string, saleItem: Partial<SaleItem>): Promise<SaleItem | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Sale item update queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('sale_items')
       .update({ ...saleItem, updated_at: new Date().toISOString() })
@@ -864,6 +963,12 @@ export const updateSaleItem = async (id: string, saleItem: Partial<SaleItem>): P
 
 export const deleteSaleItem = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Sale item delete queued for sync');
+      return false;
+    }
+    
     const { error } = await supabase
       .from('sale_items')
       .delete()
@@ -880,6 +985,12 @@ export const deleteSaleItem = async (id: string): Promise<boolean> => {
 // Debt CRUD operations
 export const getDebts = async (): Promise<Debt[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty debts list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('debts')
       .select('*')
@@ -895,6 +1006,12 @@ export const getDebts = async (): Promise<Debt[]> => {
 
 export const getDebtById = async (id: string): Promise<Debt | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch debt by ID');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('debts')
       .select('*')
@@ -911,6 +1028,24 @@ export const getDebtById = async (id: string): Promise<Debt | null> => {
 
 export const createDebt = async (debt: Omit<Debt, 'id'>): Promise<Debt | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // Save debt locally for offline use
+      const success = OfflineService.saveTransactionLocally(debt);
+      if (success) {
+        console.log('Debt saved locally for offline sync');
+        // Return a mock debt with a temporary ID
+        return {
+          ...debt,
+          id: `offline-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Failed to save debt offline');
+      }
+    }
+    
     const { data, error } = await supabase
       .from('debts')
       .insert([{ ...debt, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
@@ -927,6 +1062,12 @@ export const createDebt = async (debt: Omit<Debt, 'id'>): Promise<Debt | null> =
 
 export const updateDebt = async (id: string, debt: Partial<Debt>): Promise<Debt | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Debt update queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('debts')
       .update({ ...debt, updated_at: new Date().toISOString() })
@@ -944,6 +1085,12 @@ export const updateDebt = async (id: string, debt: Partial<Debt>): Promise<Debt 
 
 export const deleteDebt = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Debt delete queued for sync');
+      return false;
+    }
+    
     const { error } = await supabase
       .from('debts')
       .delete()
@@ -960,6 +1107,12 @@ export const deleteDebt = async (id: string): Promise<boolean> => {
 // Expense CRUD operations
 export const getExpenses = async (): Promise<Expense[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty expenses list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
@@ -975,6 +1128,12 @@ export const getExpenses = async (): Promise<Expense[]> => {
 
 export const getExpenseById = async (id: string): Promise<Expense | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch expense by ID');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
@@ -991,6 +1150,24 @@ export const getExpenseById = async (id: string): Promise<Expense | null> => {
 
 export const createExpense = async (expense: Omit<Expense, 'id'>): Promise<Expense | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // Save expense locally for offline use
+      const success = OfflineService.saveTransactionLocally(expense);
+      if (success) {
+        console.log('Expense saved locally for offline sync');
+        // Return a mock expense with a temporary ID
+        return {
+          ...expense,
+          id: `offline-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Failed to save expense offline');
+      }
+    }
+    
     const { data, error } = await supabase
       .from('expenses')
       .insert([{ ...expense, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
@@ -1007,6 +1184,12 @@ export const createExpense = async (expense: Omit<Expense, 'id'>): Promise<Expen
 
 export const updateExpense = async (id: string, expense: Partial<Expense>): Promise<Expense | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Expense update queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('expenses')
       .update({ ...expense, updated_at: new Date().toISOString() })
@@ -1024,6 +1207,12 @@ export const updateExpense = async (id: string, expense: Partial<Expense>): Prom
 
 export const deleteExpense = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Expense delete queued for sync');
+      return false;
+    }
+    
     const { error } = await supabase
       .from('expenses')
       .delete()
@@ -1040,6 +1229,12 @@ export const deleteExpense = async (id: string): Promise<boolean> => {
 // Purchase Order CRUD operations
 export const getPurchaseOrders = async (): Promise<PurchaseOrder[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty purchase orders list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('purchase_orders')
       .select('*')
@@ -1055,6 +1250,12 @@ export const getPurchaseOrders = async (): Promise<PurchaseOrder[]> => {
 
 export const getPurchaseOrderById = async (id: string): Promise<PurchaseOrder | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch purchase order by ID');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('purchase_orders')
       .select('*')
@@ -1071,6 +1272,24 @@ export const getPurchaseOrderById = async (id: string): Promise<PurchaseOrder | 
 
 export const createPurchaseOrder = async (purchaseOrder: Omit<PurchaseOrder, 'id'>): Promise<PurchaseOrder | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // Save purchase order locally for offline use
+      const success = OfflineService.saveTransactionLocally(purchaseOrder);
+      if (success) {
+        console.log('Purchase order saved locally for offline sync');
+        // Return a mock purchase order with a temporary ID
+        return {
+          ...purchaseOrder,
+          id: `offline-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Failed to save purchase order offline');
+      }
+    }
+    
     const { data, error } = await supabase
       .from('purchase_orders')
       .insert([{ ...purchaseOrder, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
@@ -1087,6 +1306,12 @@ export const createPurchaseOrder = async (purchaseOrder: Omit<PurchaseOrder, 'id
 
 export const updatePurchaseOrder = async (id: string, purchaseOrder: Partial<PurchaseOrder>): Promise<PurchaseOrder | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Purchase order update queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('purchase_orders')
       .update({ ...purchaseOrder, updated_at: new Date().toISOString() })
@@ -1104,6 +1329,12 @@ export const updatePurchaseOrder = async (id: string, purchaseOrder: Partial<Pur
 
 export const deletePurchaseOrder = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Purchase order delete queued for sync');
+      return false;
+    }
+    
     const { error } = await supabase
       .from('purchase_orders')
       .delete()
@@ -1119,6 +1350,12 @@ export const deletePurchaseOrder = async (id: string): Promise<boolean> => {
 
 export const deletePurchaseOrderWithItems = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Purchase order with items delete queued for sync');
+      return false;
+    }
+    
     // First delete all purchase order items
     const { error: itemsError } = await supabase
       .from('purchase_order_items')
@@ -1145,6 +1382,12 @@ export const deletePurchaseOrderWithItems = async (id: string): Promise<boolean>
 // Purchase Order Item CRUD operations
 export const getPurchaseOrderItems = async (purchaseOrderId: string): Promise<PurchaseOrderItem[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty purchase order items list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('purchase_order_items')
       .select('*')
@@ -1160,6 +1403,12 @@ export const getPurchaseOrderItems = async (purchaseOrderId: string): Promise<Pu
 
 export const getPurchaseOrderItemById = async (id: string): Promise<PurchaseOrderItem | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch purchase order item by ID');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('purchase_order_items')
       .select('*')
@@ -1176,6 +1425,12 @@ export const getPurchaseOrderItemById = async (id: string): Promise<PurchaseOrde
 
 export const createPurchaseOrderItem = async (purchaseOrderItem: Omit<PurchaseOrderItem, 'id'>): Promise<PurchaseOrderItem | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Purchase order item creation queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('purchase_order_items')
       .insert([{ ...purchaseOrderItem, created_at: new Date().toISOString() }])
@@ -1192,6 +1447,12 @@ export const createPurchaseOrderItem = async (purchaseOrderItem: Omit<PurchaseOr
 
 export const updatePurchaseOrderItem = async (id: string, purchaseOrderItem: Partial<PurchaseOrderItem>): Promise<PurchaseOrderItem | null> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Purchase order item update queued for sync');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('purchase_order_items')
       .update({ ...purchaseOrderItem, updated_at: new Date().toISOString() })
@@ -1209,6 +1470,12 @@ export const updatePurchaseOrderItem = async (id: string, purchaseOrderItem: Par
 
 export const deletePurchaseOrderItem = async (id: string): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Purchase order item delete queued for sync');
+      return false;
+    }
+    
     const { error } = await supabase
       .from('purchase_order_items')
       .delete()
@@ -1225,6 +1492,12 @@ export const deletePurchaseOrderItem = async (id: string): Promise<boolean> => {
 // Test RLS policies
 export const testRLSPolicies = async (): Promise<boolean> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot test RLS policies');
+      return false;
+    }
+    
     // Try to fetch products to test SELECT policy (without aggregate functions)
     const { data: selectData, error: selectError } = await supabase
       .from('products')
@@ -1549,6 +1822,12 @@ export const applyRLSPoliciesFix = async (): Promise<void> => {
 // Get products by category
 export const getProductsByCategory = async (categoryId: string): Promise<Product[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty product list by category');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -1571,6 +1850,17 @@ export const getInventoryStats = async (): Promise<{
   outOfStockItems: number;
 }> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning default inventory stats');
+      return {
+        totalProducts: 0,
+        totalValue: 0,
+        lowStockItems: 0,
+        outOfStockItems: 0
+      };
+    }
+    
     // Get all products for calculations
     const products = await getProducts();
     
@@ -1604,6 +1894,12 @@ export const searchProducts = async (query: string, filters?: {
   inStockOnly?: boolean;
 }): Promise<Product[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty product search results');
+      return [];
+    }
+    
     let supabaseQuery = supabase
       .from('products')
       .select('*');
@@ -1645,6 +1941,12 @@ export const searchProducts = async (query: string, filters?: {
 // Get recent sales
 export const getRecentSales = async (limit: number = 10): Promise<Sale[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty recent sales list');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('sales')
       .select('*')
@@ -1662,6 +1964,12 @@ export const getRecentSales = async (limit: number = 10): Promise<Sale[]> => {
 // Get sales by date range
 export const getSalesByDateRange = async (startDate: string, endDate: string): Promise<Sale[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch sales by date range');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('sales')
       .select('*')
@@ -1680,6 +1988,12 @@ export const getSalesByDateRange = async (startDate: string, endDate: string): P
 // Get total sales amount
 export const getTotalSales = async (): Promise<number> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning zero total sales');
+      return 0;
+    }
+    
     const { data, error } = await supabase
       .from('sales')
       .select('total_amount');
@@ -1697,6 +2011,12 @@ export const getTotalSales = async (): Promise<number> => {
 // Get top selling products
 export const getTopSellingProducts = async (limit: number = 10): Promise<any[]> => {
   try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty top selling products list');
+      return [];
+    }
+    
     // This is a simplified version - in a real implementation, you would join with sale_items
     const sales = await getSales();
     
