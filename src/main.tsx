@@ -20,9 +20,13 @@ if (rootElement) {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       // Register service worker for offline support
-      navigator.serviceWorker.register('/sw.js').catch((error) => {
-        console.log('Service worker registration failed:', error);
-      });
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('Service Worker registered with scope:', registration.scope);
+        })
+        .catch((error) => {
+          console.log('Service worker registration failed:', error);
+        });
     });
   }
   

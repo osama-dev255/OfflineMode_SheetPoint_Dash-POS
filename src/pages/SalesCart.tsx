@@ -17,6 +17,8 @@ import { PrintUtils } from "@/utils/printUtils";
 import WhatsAppUtils from "@/utils/whatsappUtils";
 // Import Supabase database service
 import { getProducts, getCustomers, updateProductStock, createCustomer, createSale, createSaleItem, createDebt, Product, Customer as DatabaseCustomer } from "@/services/databaseService";
+// Import offline context
+import { useOfflineContext } from "@/contexts/OfflineContext";
 
 interface CartItem {
   id: string;
@@ -80,6 +82,8 @@ export const SalesCart = ({ username, onBack, onLogout }: SalesCartProps) => {
     address: ""
   }); // State for new customer data
   const { toast } = useToast();
+  // Use offline context
+  const { isOnline, saveTransactionOffline } = useOfflineContext();
 
   // Load products and customers from Supabase on component mount
   useEffect(() => {
@@ -147,7 +151,7 @@ export const SalesCart = ({ username, onBack, onLogout }: SalesCartProps) => {
         id: product.id || '',
         name: product.name,
         price: product.selling_price,
-        quantity: 0, // Changed to 0 as requested
+        quantity: 1, // Changed to 1 as default quantity
       };
       setCart([...cart, newItem]);
     }
@@ -250,6 +254,39 @@ export const SalesCart = ({ username, onBack, onLogout }: SalesCartProps) => {
         sale_status: "completed",
         notes: paymentMethod === "debt" ? "Debt transaction - payment pending" : ""
       };
+
+      // If offline, save transaction locally and show appropriate message
+      if (!isOnline) {
+        const success = saveTransactionOffline({
+          ...saleData,
+          cartItems: cart,
+          customer: selectedCustomer
+        });
+        
+        if (success) {
+          // Show transaction complete dialog
+          setIsPaymentDialogOpen(false);
+          setIsTransactionCompleteDialogOpen(true);
+          
+          // Clear cart and reset form
+          setCart([]);
+          setSelectedCustomer(null);
+          setDiscountValue("");
+          setAmountReceived("");
+          
+          toast({
+            title: "Transaction Saved Offline",
+            description: "Transaction will be synced when connectivity is restored",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to save transaction offline",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
 
       const createdSale = await createSale(saleData);
       
@@ -404,6 +441,52 @@ export const SalesCart = ({ username, onBack, onLogout }: SalesCartProps) => {
         loyalty_points: 0,
         is_active: true
       };
+
+      // If offline, save customer locally
+      if (!isOnline) {
+        const success = saveCustomerOffline(customerData);
+        if (success) {
+          // Format the customer to match our Customer interface
+          const formattedCustomer: Customer = {
+            id: `offline-${Date.now()}`,
+            name: `${customerData.first_name} ${customerData.last_name}`,
+            loyaltyPoints: customerData.loyalty_points || 0,
+            address: customerData.address || '',
+            email: customerData.email || '',
+            phone: customerData.phone || ''
+          };
+          
+          // Add the new customer to the customers list
+          setCustomers([...customers, formattedCustomer]);
+          
+          // Select the newly created customer
+          setSelectedCustomer(formattedCustomer);
+          
+          // Close the dialog
+          setIsCustomerDialogOpen(false);
+          
+          // Reset the new customer form
+          setNewCustomer({
+            first_name: "",
+            last_name: "",
+            email: "",
+            phone: "",
+            address: ""
+          });
+          
+          toast({
+            title: "Customer Saved Offline",
+            description: "Customer will be synced when connectivity is restored",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to save customer offline",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
 
       const createdCustomer = await createCustomer(customerData);
       
@@ -895,6 +978,9 @@ export const SalesCart = ({ username, onBack, onLogout }: SalesCartProps) => {
             <p className="text-muted-foreground mb-2">Transaction ID: {transactionId}</p>
             <p className="text-2xl font-bold mb-4">{formatCurrency(total)}</p>
             <p className="text-muted-foreground">Payment Method: {paymentMethod}</p>
+            {!isOnline && (
+              <p className="text-yellow-600 text-sm mt-2">Transaction saved offline. Will sync when online.</p>
+            )}
           </div>
           <div className="flex justify-center gap-4">
             <Button variant="outline" onClick={() => {

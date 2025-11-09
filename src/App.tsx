@@ -21,6 +21,8 @@ import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 // Import language context
 import { LanguageProvider } from "@/contexts/LanguageContext";
+// Import offline context
+import { OfflineProvider } from "@/contexts/OfflineContext";
 
 // Import Supabase test function
 import { testSupabaseConnection } from "@/services/supabaseService";
@@ -53,28 +55,30 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <LanguageProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/dashboard" element={<Dashboard username="admin" onNavigate={() => {}} onLogout={() => {}} />} />
-                <Route path="/sales" element={<SalesDashboard username="admin" onBack={() => {}} onLogout={() => {}} onNavigate={() => {}} />} />
-                <Route path="/sales/cart" element={<SalesCart username="admin" onBack={() => {}} onLogout={() => {}} />} />
-                <Route path="/sales/orders" element={<SalesOrders username="admin" onBack={() => {}} onLogout={() => {}} />} />
-                <Route path="/test/sales-orders" element={<TestSalesOrders username="admin" onBack={() => {}} onLogout={() => {}} />} />
-                <Route path="/purchase/terminal" element={<PurchaseTerminal username="admin" onBack={() => {}} onLogout={() => {}} />} />
-                <Route path="/test" element={<TestPage />} />
-                <Route path="/test/qr" element={<TestQRCode />} />
-                <Route path="/test/receipt-qr" element={<TestReceiptQR />} />
-                <Route path="/test/qr-debug" element={<QRDebugTest />} />
-                <Route path="/test/qr-test" element={<QRTestPage />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
+          <OfflineProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/dashboard" element={<Dashboard username="admin" onNavigate={() => {}} onLogout={() => {}} />} />
+                  <Route path="/sales" element={<SalesDashboard username="admin" onBack={() => {}} onLogout={() => {}} onNavigate={() => {}} />} />
+                  <Route path="/sales/cart" element={<SalesCart username="admin" onBack={() => {}} onLogout={() => {}} />} />
+                  <Route path="/sales/orders" element={<SalesOrders username="admin" onBack={() => {}} onLogout={() => {}} />} />
+                  <Route path="/test/sales-orders" element={<TestSalesOrders username="admin" onBack={() => {}} onLogout={() => {}} />} />
+                  <Route path="/purchase/terminal" element={<PurchaseTerminal username="admin" onBack={() => {}} onLogout={() => {}} />} />
+                  <Route path="/test" element={<TestPage />} />
+                  <Route path="/test/qr" element={<TestQRCode />} />
+                  <Route path="/test/receipt-qr" element={<TestReceiptQR />} />
+                  <Route path="/test/qr-debug" element={<QRDebugTest />} />
+                  <Route path="/test/qr-test" element={<QRTestPage />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </OfflineProvider>
         </LanguageProvider>
       </AuthProvider>
     </QueryClientProvider>
