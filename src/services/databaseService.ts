@@ -503,6 +503,128 @@ export const updateProductStock = async (id: string, newStock: number): Promise<
   }
 };
 
+// Category CRUD operations
+export const getCategories = async (): Promise<Category[]> => {
+  try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Returning empty categories list');
+      return [];
+    }
+    
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name');
+      
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
+};
+
+export const getCategoryById = async (id: string): Promise<Category | null> => {
+  try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch category by ID');
+      return null;
+    }
+    
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('id', id)
+      .single();
+      
+    if (error) throw error;
+    return data || null;
+  } catch (error) {
+    console.error('Error fetching category:', error);
+    return null;
+  }
+};
+
+export const createCategory = async (category: Omit<Category, 'id'>): Promise<Category | null> => {
+  try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      // Save category locally for offline use
+      const success = OfflineService.saveCustomerLocally(category); // Using same method for categories
+      if (success) {
+        console.log('Category saved locally for offline sync');
+        // Return a mock category with a temporary ID
+        return {
+          ...category,
+          id: `offline-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        throw new Error('Failed to save category offline');
+      }
+    }
+    
+    const { data, error } = await supabase
+      .from('categories')
+      .insert([{ ...category, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }])
+      .select()
+      .single();
+      
+    if (error) throw error;
+    return data || null;
+  } catch (error) {
+    console.error('Error creating category:', error);
+    return null;
+  }
+};
+
+export const updateCategory = async (id: string, category: Partial<Category>): Promise<Category | null> => {
+  try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Category update queued for sync');
+      return null;
+    }
+    
+    const { data, error } = await supabase
+      .from('categories')
+      .update({ ...category, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+      
+    if (error) throw error;
+    return data || null;
+  } catch (error) {
+    console.error('Error updating category:', error);
+    return null;
+  }
+};
+
+export const deleteCategory = async (id: string): Promise<boolean> => {
+  try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Category delete queued for sync');
+      return false;
+    }
+    
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
+      
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting category:', error);
+    return false;
+  }
+};
+
 // Customer CRUD operations
 export const getCustomers = async (): Promise<Customer[]> => {
   try {
