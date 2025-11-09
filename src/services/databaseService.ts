@@ -280,6 +280,29 @@ export const getProducts = async (): Promise<Product[]> => {
   }
 };
 
+// Get product by ID
+export const getProductById = async (id: string): Promise<Product | null> => {
+  try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch product by ID');
+      return null;
+    }
+    
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+      
+    if (error) throw error;
+    return data || null;
+  } catch (error) {
+    console.error('Error fetching product by ID:', error);
+    return null;
+  }
+};
+
 // Enhanced createProduct with offline support
 export const createProduct = async (product: Omit<Product, 'id'>): Promise<Product | null> => {
   try {
