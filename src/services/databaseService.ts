@@ -1842,6 +1842,36 @@ export const getProductsByCategory = async (categoryId: string): Promise<Product
   }
 };
 
+// Get product by barcode
+export const getProductByBarcode = async (barcode: string): Promise<Product | null> => {
+  try {
+    // Check if online
+    if (!OfflineService.isOnline()) {
+      console.log('Offline: Cannot fetch product by barcode');
+      return null;
+    }
+    
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('barcode', barcode)
+      .single();
+      
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No rows returned
+        return null;
+      }
+      throw error;
+    }
+    
+    return data || null;
+  } catch (error) {
+    console.error('Error fetching product by barcode:', error);
+    return null;
+  }
+};
+
 // Get inventory statistics
 export const getInventoryStats = async (): Promise<{
   totalProducts: number;
