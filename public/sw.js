@@ -1,11 +1,12 @@
 // Service Worker for POS System Offline Support
-const CACHE_NAME = 'pos-system-v1.0';
+const CACHE_NAME = 'pos-system-v2.1';
 const urlsToCache = [
   '/',
   '/index.html',
   '/favicon.ico',
   '/robots.txt',
-  '/sw.js'
+  '/sw.js',
+  '/offline.html'
 ];
 
 // Install event - cache static assets
@@ -15,12 +16,13 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Service Worker: Caching static assets');
-        return cache.addAll(urlsToCache);
-      })
-      .catch((error) => {
-        console.error('Service Worker: Failed to cache assets', error);
+        return cache.addAll(urlsToCache)
+          .catch((error) => {
+            console.error('Service Worker: Failed to cache assets during install', error);
+          });
       })
   );
+  self.skipWaiting();
 });
 
 // Activate event - clean up old caches
@@ -59,19 +61,29 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE_NAME)
               .then((cache) => {
                 cache.put(event.request, responseToCache);
+              })
+              .catch((error) => {
+                console.warn('Service Worker: Failed to cache Supabase response', error);
               });
           }
           return response;
         })
         .catch(() => {
           // If network fails, try cache
-          return caches.match(event.request);
+          return caches.match(event.request)
+            .then((cachedResponse) => {
+              if (cachedResponse) {
+                return cachedResponse;
+              }
+              // If no cached response, throw error
+              throw new Error('Network error and no cached response for Supabase request');
+            });
         })
     );
     return;
   }
 
-  // For static assets, use cache-first strategy
+  // For static assets, use cache-first strategy with network fallback
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -79,16 +91,47 @@ self.addEventListener('fetch', (event) => {
         if (response) {
           return response;
         }
+        
         // Otherwise fetch from network
-        return fetch(event.request);
+        return fetch(event.request)
+          .then((networkResponse) => {
+            // Cache the response for future offline use
+            if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+              const responseToCache = networkResponse.clone();
+              caches.open(CACHE_NAME)
+                .then((cache) => {
+                  cache.put(event.request, responseToCache);
+                })
+                .catch((error) => {
+                  console.warn('Service Worker: Failed to cache network response', error);
+                });
+            }
+            return networkResponse;
+          })
+          .catch(() => {
+            // If both cache and network fail, return appropriate fallbacks
+            if (event.request.headers.get('accept').includes('text/html')) {
+              return caches.match('/index.html');
+            }
+            // For CSS/JS assets, return a basic response
+            return new Response('', {
+              status: 200,
+              statusText: 'OK'
+            });
+          });
       })
-      .catch(() => {
-        // If both cache and network fail, return a fallback page for HTML requests
+      .catch((error) => {
+        console.error('Service Worker: Fetch handler error', error);
+        // If everything fails, return appropriate fallbacks
         if (event.request.headers.get('accept').includes('text/html')) {
-          return caches.match('/index.html');
+          return caches.match('/offline.html')
+            .then((response) => response || caches.match('/index.html'));
         }
-        // For other requests, re-throw the error
-        throw new Error('Network error and no cached response');
+        // For assets, return a basic response
+        return new Response('', {
+          status: 200,
+          statusText: 'OK'
+        });
       })
   );
 });

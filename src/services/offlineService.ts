@@ -167,26 +167,41 @@ export class OfflineService {
       // Sync transactions
       const transactionQueue = this.getTransactionQueue();
       for (const item of transactionQueue) {
-        // In a real implementation, you would call your API to sync the transaction
-        // For now, we'll just simulate the sync process
-        console.log('Syncing transaction:', item.data);
-        syncCount++;
+        try {
+          // In a real implementation, you would call your API to sync the transaction
+          // For now, we'll just simulate the sync process
+          console.log('Syncing transaction:', item.data);
+          syncCount++;
+        } catch (syncError) {
+          console.error('Failed to sync transaction:', item.id, syncError);
+          // Continue with other items even if one fails
+        }
       }
       
       // Sync customers
       const customerQueue = this.getCustomerQueue();
       for (const item of customerQueue) {
-        // In a real implementation, you would call your API to sync the customer
-        console.log('Syncing customer:', item.data);
-        syncCount++;
+        try {
+          // In a real implementation, you would call your API to sync the customer
+          console.log('Syncing customer:', item.data);
+          syncCount++;
+        } catch (syncError) {
+          console.error('Failed to sync customer:', item.id, syncError);
+          // Continue with other items even if one fails
+        }
       }
       
       // Sync products
       const productQueue = this.getProductQueue();
       for (const item of productQueue) {
-        // In a real implementation, you would call your API to sync the product
-        console.log('Syncing product:', item.data);
-        syncCount++;
+        try {
+          // In a real implementation, you would call your API to sync the product
+          console.log('Syncing product:', item.data);
+          syncCount++;
+        } catch (syncError) {
+          console.error('Failed to sync product:', item.id, syncError);
+          // Continue with other items even if one fails
+        }
       }
       
       // Clear queues after successful sync
@@ -205,7 +220,7 @@ export class OfflineService {
       return { success: true, message: 'No items to sync' };
     } catch (error) {
       console.error('Failed to sync offline data:', error);
-      return { success: false, message: 'Failed to sync offline data' };
+      return { success: false, message: 'Failed to sync offline data. Please try again.' };
     }
   }
 }
