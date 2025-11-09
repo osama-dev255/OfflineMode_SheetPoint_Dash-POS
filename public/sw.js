@@ -3,9 +3,9 @@ const CACHE_NAME = 'pos-system-v1.0';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/src/main.tsx',
-  '/src/App.tsx',
-  '/src/index.css'
+  '/favicon.ico',
+  '/robots.txt',
+  '/sw.js'
 ];
 
 // Install event - cache static assets
@@ -83,10 +83,12 @@ self.addEventListener('fetch', (event) => {
         return fetch(event.request);
       })
       .catch(() => {
-        // If both cache and network fail, return a fallback page
+        // If both cache and network fail, return a fallback page for HTML requests
         if (event.request.headers.get('accept').includes('text/html')) {
           return caches.match('/index.html');
         }
+        // For other requests, re-throw the error
+        throw new Error('Network error and no cached response');
       })
   );
 });

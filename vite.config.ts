@@ -4,6 +4,7 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: "./", // This is important for Netlify deployment
   server: {
     host: "::",
     port: 8080,

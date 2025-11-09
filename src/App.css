@@ -41,63 +41,82 @@
   color: #888;
 }
 
-/* Splash Screen Animations */
-@keyframes splash-fade-in {
-  from {
+/* Professional Splash Screen Animations */
+@keyframes splash-fade-in-scale {
+  0% {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(30px) scale(0.9);
   }
-  to {
+  100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 @keyframes splash-progress {
-  from {
+  0% {
     width: 0;
+    transform: translateX(-100%);
   }
-  to {
+  100% {
     width: 100%;
+    transform: translateX(0);
   }
 }
 
-.splash-fade-in {
-  animation: splash-fade-in 0.5s ease-out forwards;
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-20px) translateX(10px) rotate(5deg);
+  }
+  50% {
+    transform: translateY(-40px) translateX(-10px) rotate(-5deg);
+  }
+  75% {
+    transform: translateY(-20px) translateX(-15px) rotate(3deg);
+  }
+}
+
+@keyframes splash-pulse-glow {
+  0%, 100% {
+    opacity: 0.4;
+    filter: blur(12px);
+  }
+  50% {
+    opacity: 0.8;
+    filter: blur(20px);
+  }
+}
+
+.splash-fade-in-scale {
+  animation: splash-fade-in-scale 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  opacity: 0;
 }
 
 .splash-progress {
-  animation: splash-progress 2s ease-out forwards;
-  animation-delay: 1s;
+  animation: splash-progress 3s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
   opacity: 0;
   animation-fill-mode: both;
 }
 
-/* Professional Splash Screen Styles */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.2;
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Enhanced animations for professional splash */
+@keyframes progress {
+  0% {
+    transform: translateX(-100%);
   }
-  50% {
-    opacity: 0.4;
+  100% {
+    transform: translateX(100%);
   }
 }
 
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
-}
-
-.animate-bounce {
-  animation: bounce 1s infinite;
+.animate-progress {
+  animation: progress 2s ease-in-out infinite;
 }
 
 /* Responsive Utilities */

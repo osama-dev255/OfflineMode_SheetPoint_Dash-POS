@@ -16,6 +16,7 @@ VITE_SUPABASE_ANON_KEY = "Your Supabase Anon Key"
 from = "/*"
 to = "/index.html"
 status = 200
+force = false
 
 # Security headers
 [[headers]]
